@@ -5,6 +5,7 @@ backed by industry-strength
 [Freetype](https://www.freetype.org/) and
 [Harfbuzz](http://harfbuzz.org/).
 
+> This is a project in its early stages of development
 
 ## Building
 
