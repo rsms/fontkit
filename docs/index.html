@@ -1,0 +1,387 @@
+<!DOCTYPE HTML>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>fontkit</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <link href="https://rsms.me/inter/inter-ui.css" rel="stylesheet">
+    <link rel="stylesheet" media="all" href="index.css" type="text/css">
+    <link rel="shortcut icon" href="favicon.ico">
+    <style type="text/css">
+
+body {
+  padding: calc(var(--spacing) * 2);
+}
+body.drag-over { box-shadow: inset 0px 0px 0px 10px #0072ff; }
+body.drag-over * { pointer-events: none; }
+
+label { user-select: none; }
+label.layout-feat { display: block; }
+
+select { max-width:10rem; }
+
+.var-section { display: none; margin-bottom: var(--spacing); }
+.var-section.enabled { display: block; }
+.var-axis {
+  display: flex;
+  flex-direction: column;
+}
+
+    </style>
+  </head>
+  <body>
+    <!-- <h1>FontKit</h1> -->
+    <h2 id="fontfile"></h2>
+
+    <grid class="xdebug">
+      <div class="col-1-2">
+        <h3>Info</h3>
+        <p id="output">• • •</p>
+      </div>
+      <div class="col-3-1">
+        <h3>Layout text</h3>
+        <p>
+          <input class="layout-input" type="text">
+        </p>
+        <div class="var-section">
+          <h3>Variation</h3>
+          <p>
+            <select class="var-styles">
+            </select>
+            <!-- template -->
+            <label class="var-axis">
+              <span class="label">Label</span>
+              <input type="range" min="0" max="100" step="1" value="0">
+            </label>
+          </p>
+        </div>
+        <h3>Language and script</h3>
+        <p>
+          <select class="layout-lang">
+            <option value="" checked>Guess language</option>
+            <option disabled>————————————————————</option>
+          </select>
+          <select class="layout-script">
+            <option value="" checked>Guess script</option>
+            <option disabled>————————————————————</option>
+          </select>
+        </p>
+        <h3>Enabled features</h3>
+        <p>
+          <!-- template -->
+          <label class="layout-feat">
+            <input type="checkbox" value="calt">
+          </label>
+        </p>
+      </div>
+      <div class="col-4-5">
+        <h3>Layout result</h3>
+        <pre class="layout-output"></pre>
+      </div>
+    </grid>
+
+    <script src="amdld.js"></script><!-- <script>define['debug']=1</script> -->
+    <script async src="fontkit.js"></script>
+
+    <!-- used by this demo app -->
+    <script src="util.js"></script>
+    <script src="dragdrop.js"></script>
+    <script>
+
+function fetchbuf(url) { // :Promise<ArrayBuffer>
+  return fetch(url, {credentials:'same-origin'}).then(r => r.arrayBuffer())
+}
+
+function defineData(name, url) {
+  fetchbuf(url).then(buf => define(url, [], ()=>buf))
+}
+
+let fontfile = 'Inter-UI.var.ttf'
+let fontfileTitle = document.getElementById('fontfile')
+fontfileTitle.innerText = fontfile
+
+// start loading the font file as early as possible
+let fontbufp = fetchbuf('fonts/' + fontfile)
+
+// Now, wait for fontkit to load
+// ----------------------------------------------------------------
+define('main', ['fontkit'], function(fk) {
+console.log('fontkit:', fk)
+
+let font = null
+let layoutInput = document.querySelector('.layout-input')
+let layoutOutput = document.querySelector('.layout-output')
+let layoutConfig = new fk.Config()
+
+let varSection = document.querySelector('.var-section')
+let varAxisTemplate = varSection.querySelector('.var-axis')
+varAxisTemplate.parentNode.removeChild(varAxisTemplate)
+
+
+function printInfo() {
+  console.log('font.info =>')
+  let infoOutput = document.getElementById('output')
+  infoOutput.innerText = ''
+  for (let k in font.info) {
+    console.log(`  ${k}:`, font.info[k])
+    infoOutput.innerText += `${k}: ${font.info[k]}\n`
+  }
+
+  if (font.variations) {
+    console.log(`font is variable`)
+    infoOutput.innerText += `variable: true\n`
+    
+    console.log(`${font.variations.styles.length} styles:`)
+    for (let s of font.variations.styles) {
+      console.log(`  #${s.index} "${s.name}"`)
+    }
+
+    console.log(`${font.variations.axes.length} axes:`)
+    for (let a of font.variations.axes) {
+      console.log(`  #${a.index} "${a.name}" [${a.min}–${a.max}] (${a.default})`)
+    }
+  } else {
+    infoOutput.innerText += `variable: false\n`
+  }
+}
+
+
+function layout(font, text) {
+  let glyphs = font.layout(text, layoutConfig)
+  // console.log("font.layout =>", glyphs)
+
+  layoutOutput.innerText = ''
+  for (let g of glyphs) {
+    layoutOutput.innerText +=
+      `#${g.id} — "${g.name}" — advance: ${g.advanceX} — kerning: ${g.kerningX}\n`
+  }
+
+  glyphs.dispose()
+}
+
+
+function triggerLayout() {
+  layoutInput.dispatchEvent(new Event("input"))
+}
+
+
+function loadFont(urlOrData) {
+  // throw away previously-loaded font, if any
+  if (font) {
+    font.dispose()
+  }
+
+  font = fk.load(urlOrData)
+
+  // print info
+  console.log(`font =>`, font)
+  printInfo()
+
+  // update UI and trigger layout
+  updateUI()
+  triggerLayout()
+}
+
+
+function readblob(blob) { // Promise<ArrayBuffer>
+  return new Promise((resolve, reject) => {
+    let reader = new FileReader()
+    let done = false
+    let fin = (buf, err) => {
+      if (done) { return }
+      done = true
+      if (err) {
+        reject(err)
+      } else {
+        resolve(buf)
+      }
+    }
+    reader.addEventListener("loadend", () => fin(reader.result, null))
+    reader.addEventListener("error", () => fin(null, reader.error))
+    reader.addEventListener("abort", () => fin(null, new Error('aborted')))
+    reader.readAsArrayBuffer(blob)
+  })
+}
+
+
+function loadFontFile(file) {
+  console.log('loading font file', file)
+  fontfileTitle.innerText = file.name
+  return readblob(file).then(loadFont)
+}
+
+
+function updateUI() {
+  // called after loading a font
+
+  // variations
+  if (font.variations) {
+    // batch dom edits
+    varSection.style.visibility = 'hidden'
+
+    // styles
+    let varStyles = varSection.querySelector('.var-styles')
+    for (let i = 0; i < varStyles.children.length; i++) {
+      varStyles.removeChild(varStyles.children[i])
+    }
+    for (let s of font.variations.styles) {
+      let el = document.createElement('option')
+      el.innerText = s.name
+      el.value = 'style-' + s.index
+      varStyles.appendChild(el)
+    }
+    // TODO: hook up handlers to varStyles in initUI()
+
+    // axes
+    for (let el of [].slice.call(varSection.querySelectorAll('var-axis'))) {
+      el.parentNode.removeChild(el)
+    }
+    for (let a of font.variations.axes) {
+      let el = varAxisTemplate.cloneNode(true)
+      el.querySelector('.label').innerText = a.name
+      let input = el.querySelector('input')
+      input.name = 'axis-' + a.index
+      input.min = a.min
+      input.max = a.max
+      input.value = a.default
+      varSection.appendChild(el)
+      // TODO: hook up handlers
+    }
+
+    varSection.style.visibility = null
+    varSection.classList.add('enabled')
+  } else {
+    varSection.classList.remove('enabled')
+  }
+}
+
+
+function initUI() {
+  // called once when app starts
+  layoutInput.addEventListener('input', ev => {
+    if (font) {
+      layout(font, layoutInput.value)
+    }
+  })
+  layoutInput.value = "aA-TäTeMe12.3"
+
+  // layout features
+  let layoutFeatures = { calt:true, liga:true, kern:true }
+  let template = document.querySelector('label.layout-feat')
+  let featsel = template.parentElement
+  template.parentElement.removeChild(template)
+  for (let feat in fk.features) {
+    let e = template.cloneNode(true)
+    let labeltext = document.createTextNode(feat)
+    e.appendChild(labeltext)
+    e.title = fk.features[feat].name
+    let checkbox = e.querySelector('input')
+    if (layoutFeatures[feat]) {
+      checkbox.checked = true
+    }
+    checkbox.value = feat
+    checkbox.addEventListener('change', ev => {
+      layoutFeatures[feat] = checkbox.checked
+      // update config
+      layoutConfig.setFeatures(
+        Object.keys(layoutFeatures).map(name => ({
+          name: name,
+          enabled: !!layoutFeatures[name],
+        }))
+      )
+      triggerLayout()
+    })
+    featsel.appendChild(e)
+  }
+
+  // language list
+  let langselect = document.querySelector('select.layout-lang')
+  let langLoadingOption = document.createElement('option')
+  langLoadingOption.innerText = 'Loading...'
+  langLoadingOption.disabled = true
+  langselect.appendChild(langLoadingOption)
+  fetch('bcp47-languages.json').then(r => r.json()).then(langs => {
+    langselect.removeChild(langLoadingOption)
+    for (let lang of langs) {
+      let code = lang[0], descr = lang[1]
+      let e = document.createElement('option')
+      e.innerText = code + ' — ' + descr
+      e.value = code
+      langselect.appendChild(e)
+    }
+    langselect.addEventListener('change', ev => {
+      layoutConfig.language = langselect.value
+      triggerLayout()
+    })
+  }).catch(err => {
+    langLoadingOption.innerText = 'Failed to load: ' + err
+  })
+
+  // script list
+  let scriptselect = document.querySelector('select.layout-script')
+  let scriptLoadingOption = document.createElement('option')
+  scriptLoadingOption.innerText = 'Loading...'
+  scriptLoadingOption.disabled = true
+  scriptselect.appendChild(scriptLoadingOption)
+  fetch('iso15924-scripts.json').then(r => r.json()).then(scripts => {
+    scriptselect.removeChild(scriptLoadingOption)
+    for (let script of scripts) {
+      let code = script[0], name = script[1]
+      let e = document.createElement('option')
+      e.innerText = name + ' (' + code + ')'
+      e.value = code
+      scriptselect.appendChild(e)
+    }
+    scriptselect.addEventListener('change', ev => {
+      layoutConfig.script = scriptselect.value
+      triggerLayout()
+    })
+  }).catch(err => {
+    scriptLoadingOption.innerText = 'Failed to load: ' + err
+  })
+
+  // TODO: show styles and axes of font.variations
+
+  // drag-and-drop
+  initDropTarget(
+    document.body,
+    () => document.body.classList.add('drag-over'),
+    drop => {
+      document.body.classList.remove('drag-over')
+      if (!drop) { return }
+      for (let file of drop.files) {
+        // load first file dropped
+        loadFontFile(file).catch(err => {
+          console.error(`failed to load ${file.name}: ${err}`)
+        })
+        break
+      }
+    }
+  )
+}
+
+
+function main() {
+  initUI()
+
+  // await font data, then load the font
+  fontbufp.then(loadFont).catch(err => {
+    console.error(err.stack || String(err))
+  })
+}
+
+
+
+
+main()
+})
+// ----------------------------------------------------------------
+
+
+
+
+    </script>
+  </body>
+</html>

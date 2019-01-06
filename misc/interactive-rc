@@ -1,0 +1,12 @@
+export HISTCONTROL=ignoredups:ignorespace
+shopt -s checkwinsize cmdhist histappend
+
+export SHELL=/bin/bash
+
+export LS_OPTIONS='--color=auto'
+eval "`dircolors`"
+alias ls='ls $LS_OPTIONS'
+alias ll='ls $LS_OPTIONS -lA'
+alias l='ls $LS_OPTIONS -lF'
+
+export PS1="\[\e[1m\]\w\[\e[m\] \[\e[33;1m\]\\\\$\[\e[m\] "
