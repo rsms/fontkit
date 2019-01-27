@@ -94,9 +94,9 @@ function fetchbuf(url) { // :Promise<ArrayBuffer>
   return fetch(url, {credentials:'same-origin'}).then(r => r.arrayBuffer())
 }
 
-function defineData(name, url) {
-  fetchbuf(url).then(buf => define(url, [], ()=>buf))
-}
+// function defineData(name, url) {
+//   fetchbuf(url).then(buf => define(url, [], ()=>buf))
+// }
 
 let fontfile = 'Inter-UI.var.ttf'
 let fontfileTitle = document.getElementById('fontfile')
