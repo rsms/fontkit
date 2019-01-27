@@ -14,6 +14,7 @@ FKFont* EXPORT FKFontCreate(const FT_Byte* bufptr, unsigned buflen) {
   f->face = NULL;
   f->font = NULL;
   f->nameindex = NULL;
+  f->vm = NULL;
 
   // First try loading the first named instance of a variable font
   // if (FKErrSetFT(FT_New_Memory_Face(fk_ftlib, bufptr, buflen, 0x00010000, &f->face))) {
