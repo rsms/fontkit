@@ -7,6 +7,8 @@
 #include <hb-ot.h>
 #include <freetype/ftmm.h>
 #include <freetype/ttnameid.h>
+#include <freetype/tttables.h>
+#include <freetype/ftfntfmt.h>
 
 
 FKFont* EXPORT FKFontCreate(const FT_Byte* bufptr, unsigned buflen) {
@@ -26,6 +28,7 @@ FKFont* EXPORT FKFontCreate(const FT_Byte* bufptr, unsigned buflen) {
   // }
 
   // set character size to UPM
+  // Note: If we don't set this, layout & shaping will fail.
   if (!FKFontSetCharSize(f, f->face->units_per_EM)) {
     FKFontFree(f);
     return NULL;
@@ -56,6 +59,9 @@ void EXPORT FKFontFree(FKFont* f) {
 }
 
 
+// ---- START OF INFO ----
+
+
 // Properties of FT_Face exposed via accessor functions.
 //
 //   FKFontGet_<property>(FKFont)
@@ -70,6 +76,74 @@ void EXPORT FKFontFree(FKFont* f) {
 #include "fkfont-props.inc"
 FK_FONT_PROPS(A)
 #undef A
+
+const char* EXPORT FKFontGet_format_name(const FKFont* f) {
+  return FT_Get_Font_Format(f->face);
+}
+
+
+bool EXPORT FKFontGetIsSFNT(const FKFont* f) {
+  return !!FT_IS_SFNT(f->face);
+}
+
+bool EXPORT FKFontGetIsScalable(const FKFont* f) {
+  return !!FT_IS_SCALABLE(f->face);
+}
+
+bool EXPORT FKFontGetIsMonospace(const FKFont* f) {
+  return !!FT_IS_FIXED_WIDTH(f->face);
+}
+
+u16 EXPORT FKFontGetWeightClass(const FKFont* f) {
+  // get pointer to OS/2 table (table memory owned by f->face)
+  const TT_OS2* os2 = (const TT_OS2*)FT_Get_Sfnt_Table(f->face, FT_SFNT_OS2);
+  if (!os2) {
+    // Note: The FT2 documentation is a little vague on when this retuns NULL.
+    // It seems possible that this returns NULL if a table hasn't been loaded
+    // from side-effects but actually does exist in the font file.
+    // See https://www.freetype.org/freetype2/docs/reference/
+    //   ft2-truetype_tables.html#ft_get_sfnt_table
+    // See related FT_Load_Sfnt_Table function.
+    return 0;
+  }
+  return os2->usWeightClass;
+}
+
+u16 EXPORT FKFontGetWidthClass(const FKFont* f) {
+  const TT_OS2* os2 = (const TT_OS2*)FT_Get_Sfnt_Table(f->face, FT_SFNT_OS2);
+  if (!os2) {
+    return 0;
+  }
+  return os2->usWidthClass;
+}
+
+i16 EXPORT FKFontGetXHeight(const FKFont* f) {
+  const TT_OS2* os2 = (const TT_OS2*)FT_Get_Sfnt_Table(f->face, FT_SFNT_OS2);
+  if (!os2 || os2->version < 2) {
+    return 0;
+  }
+  return os2->sxHeight;
+}
+
+i16 EXPORT FKFontGetCapHeight(const FKFont* f) {
+  const TT_OS2* os2 = (const TT_OS2*)FT_Get_Sfnt_Table(f->face, FT_SFNT_OS2);
+  if (!os2 || os2->version < 2) {
+    return 0;
+  }
+  return os2->sCapHeight;
+}
+
+const char* EXPORT FKFontGetVendorID(const FKFont* f) {
+  const TT_OS2* os2 = (const TT_OS2*)FT_Get_Sfnt_Table(f->face, FT_SFNT_OS2);
+  if (!os2 || os2->version < 2) {
+    return NULL;
+  }
+  return (const char*)&os2->achVendID[0];
+}
+
+
+
+// ---- END OF INFO ----
 
 
 // Set character size
@@ -112,21 +186,18 @@ bool EXPORT FKFontLayout(
   // featcount = sizeof(features) / sizeof(hb_feature_t);
   // featptr = features;
 
-  hb_font_t* font = FKFontGetHB(f);
-
   hb_buffer_t* buffer = FKBufGetHBBuf(buf);
   hb_buffer_guess_segment_properties(buffer);
-
 
   // shape
   // Note: the difference between hb_shape is simply a convenience function
   // around hb_shape_full that passes NULL for the shaper list.
   // hb_shape_full returns the status of hb_shape_plan_execute.
   // Sets buffer->content_type = HB_BUFFER_CONTENT_TYPE_GLYPHS on success.
+  hb_font_t* font = FKFontGetHB(f);
   if (FKErrSetHB(hb_shape_full(font, buffer, featptr, featcount, NULL))) {
     return false;
   }
-  // hb_shape(font, buffer, featptr, featcount);
 
   return true;
 }
@@ -166,7 +237,7 @@ static void _FKFontBuildNameIndex(FKFont* f, /*out*/FT_SfntName* n) {
 
 bool FKFontGetName(FKFont* f, u32 strid, /*out*/FT_SfntName* name) {
   if (!f->nameindex) {
-    printf("_FKFontBuildNameIndex\n");
+    // printf("_FKFontBuildNameIndex\n");
     _FKFontBuildNameIndex(f, name);
   }
   u32 index = hb_map_get(f->nameindex, strid);
@@ -219,6 +290,7 @@ u32 EXPORT FKFontFeatures(FKFont* f) {
   FT_MM_Var* m = v->m;
 
   printf(
+    "[FKFontFeatures] "
     "font is variable;\n"
     "  num_designs:     %u\n"
     "  num_namedstyles: %u\n"

@@ -51,15 +51,17 @@ if $config_only; then
   if $opt_interactive; then
     echo "$0: -i has no effect with -feats (see $0 -h)" >&2
   fi
+  config_args="${config_args[@]}"
   docker run --rm -t -v "$PWD:/src" rsms/emsdk:latest \
-    ./misc/config.js -write-if-changed ${config_args[@]}
-
-elif $opt_interactive; then
-  echo 'Tip: Type `ninja` to build; `./misc/config.js -h` for configuration.'
-  docker run --rm -it -v "$PWD:/src" rsms/emsdk:latest \
-    /bin/bash -ic "./misc/config.js -write-if-changed ${config_args[@]} && cat misc/interactive-rc >> ~/.bashrc && /bin/bash -i"
-
+    /bin/bash -c "./misc/config.js $config_args"
 else
-  docker run --rm -t -v "$PWD:/src" rsms/emsdk:latest \
-    /bin/bash -c "./misc/config.js -write-if-changed ${config_args[@]} && ninja"
+  config_args="${config_args[@]} -write-if-changed"
+  if $opt_interactive; then
+    echo 'Tip: Type `ninja` to build; `./misc/config.js -h` for configuration.'
+    docker run --rm -it -v "$PWD:/src" rsms/emsdk:latest \
+      /bin/bash -ic "./misc/config.js ${config_args[@]} && cat misc/interactive-rc >> ~/.bashrc && /bin/bash -i"
+  else
+    docker run --rm -t -v "$PWD:/src" rsms/emsdk:latest \
+      /bin/bash -c "./misc/config.js $config_args && ninja"
+  fi
 fi

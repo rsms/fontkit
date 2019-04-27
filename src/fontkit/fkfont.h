@@ -65,6 +65,41 @@ bool FKFontLayout(FKFont*, FKBuf*, hb_feature_t*, u32 nfeats);
 FK_FONT_PROPS(A)
 #undef A
 
+// Return a string describing the format of a given face.
+// Possible values are "TrueType", "Type 1", "BDF", "PCF", "Type 42",
+// "CID Type 1", "CFF", "PFR", and "Windows FNT".
+const char* FKFontGet_format_name(const FKFont*);
+
+// FKFontGet_isSFNT returns true when the font format is based on the
+// SFNT storage scheme. This usually means: TrueType fonts, OpenType fonts,
+// as well as SFNT-based embedded bitmap fonts.
+bool FKFontGetIsSFNT(const FKFont*);
+
+// true whenever the font contains a scalable/vector font face.
+// i.e. TrueType, Type 1, Type 42, CID, OpenType/CFF, and PFR font formats.
+bool FKFontGetIsScalable(const FKFont*);
+
+// true whenever the font contains fixed-width glyphs.
+bool FKFontGetIsMonospace(const FKFont*);
+
+// FKFontGetWeightClass returns the weight class. Valid range: [1-1000]
+// https://docs.microsoft.com/en-us/typography/opentype/spec/os2#usweightclass
+u16 FKFontGetWeightClass(const FKFont*);
+
+// FKFontGetWidthClass returns the width class. Valid range: [1-9]
+// https://docs.microsoft.com/en-us/typography/opentype/spec/os2#uswidthclass
+u16 FKFontGetWidthClass(const FKFont*);
+
+// FKFontGetXHeight returns the (metrics) x-height if known; 0 if unknown.
+i16 FKFontGetXHeight(const FKFont*);
+
+// FKFontGetCapHeight returns the (metrics) cap height if known; 0 if unknown.
+i16 FKFontGetCapHeight(const FKFont*);
+
+// FKFontGetVendorID returns the four-byte vendor ID, or NULL if unknown.
+// https://docs.microsoft.com/en-us/typography/opentype/spec/os2#achvendid
+const char* FKFontGetVendorID(const FKFont*);
+
 
 // -------------------------------------------------------
 // internal

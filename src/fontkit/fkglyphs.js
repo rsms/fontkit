@@ -4,13 +4,16 @@ import {
   cstrStack,
   asciicstr,
   hbtag,
-  hbtagStr,
+  u32ToAsciiStr,
 } from './fkutil'
+
+// Roughly corresponds to FKBuf
 
 
 const HB_SCRIPT_COMMON    = hbtag('Zyyy')
     , HB_SCRIPT_INHERITED = hbtag('Zinh')
     , HB_SCRIPT_UNKNOWN   = hbtag("Zzzz")
+    , HB_SCRIPT_INVALID   = hbtag("\0\0\0\0")
 
 
 class Glyph {
@@ -57,7 +60,7 @@ class GlyphIterator {
     let advanceX = glyph_pos.x_advance.readv(this.posptr, i)
     let offsetX = glyph_pos.x_offset.readv(this.posptr, i)
 
-    const kerningX = advanceX - _FKFontGetGlyphAdvance(this.font.ptr, gid);
+    const kerningX = advanceX - _FKFontGetGlyphAdvance(this.font.ptr, gid)
 
     return { done: false, value:
       new Glyph(this.font, gid, advanceX, offsetX, kerningX)
@@ -76,6 +79,11 @@ export class Glyphs {
     this.font = font
   }
 
+  _reset() {
+    _FKBufReset(this.ptr)
+    this.font = null
+  }
+
   dispose() {
     if (this.ptr) {
       _FKBufFree(this.ptr)
@@ -88,17 +96,19 @@ export class Glyphs {
   // On failure, the buffer does not represent any specific script,
   // and the script will instead be guessed during layout.
   //
-  // Accepts the special values "inherit" and "common".
+  // Accepts the special values "inherit", "common" and "unknown".
   //
   // See http://unicode.org/iso15924/iso15924-codes.html
   setScript(script) {
-    let tag = HB_SCRIPT_UNKNOWN
+    let tag = HB_SCRIPT_INVALID
     if (script) {
       script = String(script)
       if (script == "inherit") {
         tag = HB_SCRIPT_INHERITED
       } else if (script == "common") {
         tag = HB_SCRIPT_COMMON
+      } else if (script == "unknown") {
+        tag = HB_SCRIPT_UNKNOWN
       } else if (script.length > 4) {
         throw new Error("invalid script tag")
       } else {
@@ -108,7 +118,7 @@ export class Glyphs {
     return this.setScriptTag(tag)
   }
 
-  // script() : string|undefined
+  // script() : string|null
   script() {
     let tag = this.scriptTag()
     if (tag == HB_SCRIPT_COMMON) {
@@ -116,9 +126,11 @@ export class Glyphs {
     } else if (tag == HB_SCRIPT_INHERITED) {
       return "inherit"
     } else if (tag == HB_SCRIPT_UNKNOWN) {
-      return undefined
+      return "unknown"
+    } else if (tag == HB_SCRIPT_INVALID) {
+      return null
     }
-    return hbtagStr(tag)
+    return u32ToAsciiStr(tag)
   }
 
   // setScriptTag sets the script by a hb_tag
@@ -136,18 +148,37 @@ export class Glyphs {
   // On failure, the buffer does not represent any specific language,
   // and the language will instead be guessed during layout.
   setLanguage(language) {
-    language = !language ? null : String(language)
+    language = language ? String(language) : null
     return withStackFrame(() =>
       !!_FKBufSetLanguage(this.ptr, cstrStack(language), -1)
     )
   }
 
-  // language() : string|undefined
+  // language() : string|null
   language() {
     let pch = _FKBufGetLanguage(this.ptr)
-    if (pch != 0) {
-      return asciicstr(HEAPU8, pch)
-    }
+    return pch != 0 ? asciicstr(HEAPU8, pch) : null
+  }
+
+  // setDirection(dir :int) :bool -- true on success
+  setDirection(dir) {
+    return _FKBufSetDirection(this.ptr, dir)
+  }
+
+  direction() {
+    // enum TextDirection {
+    //   None = 0, // unset
+    //   LTR  = 4, // horizontally from left to right
+    //   RTL  = 5, // horizontally from right to left
+    //   TTB  = 6, // vertically from top to bottom
+    //   BTT  = 7, // vertically from bottom to top
+    // }
+    return _FKBufGetDirection(this.ptr)
+  }
+
+  // guess script, language and direction
+  guessSegmentProperties() {
+    _FKBufGuessSegmentProps(this.ptr)
   }
 
   //!valid-after-layout

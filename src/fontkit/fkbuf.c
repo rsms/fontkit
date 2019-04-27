@@ -6,11 +6,17 @@
 
 FKBuf* EXPORT FKBufAlloc() {
   hb_buffer_t* b = hb_buffer_create();
-  // hb_buffer_set_script(b, HB_SCRIPT_COMMON);
-  hb_buffer_set_direction(b, HB_DIRECTION_LTR);
+  // hb_buffer_set_script(b, HB_SCRIPT_INVALID);
+  // hb_buffer_set_direction(b, HB_DIRECTION_LTR);
   hb_buffer_set_cluster_level(b, HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS);
   // hb_buffer_set_content_type(b, HB_BUFFER_CONTENT_TYPE_UNICODE);
   return b;
+}
+
+
+void EXPORT FKBufReset(FKBuf* b) {
+  hb_buffer_reset(b);
+  hb_buffer_set_cluster_level(b, HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS);
 }
 
 void EXPORT FKBufFree(FKBuf* b) {
@@ -37,11 +43,6 @@ FKBuf* EXPORT FKBufCreateUTF16(const u16* ptr, u32 len) {
 
 void EXPORT FKBufIsText(FKBuf* b) {
   hb_buffer_get_content_type(b);
-}
-
-
-void EXPORT FKBufReset(FKBuf* b) {
-  hb_buffer_reset(b);
 }
 
 
@@ -77,7 +78,30 @@ bool EXPORT FKBufSetScript(FKBuf* b, hb_tag_t t) {
 }
 
 hb_tag_t EXPORT FKBufGetScript(FKBuf* b) {
-  return hb_buffer_get_script(b);
+  return hb_script_to_iso15924_tag(hb_buffer_get_script(b));
+}
+
+
+bool EXPORT FKBufSetDirection(FKBuf* b, i32 dir) {
+  switch (dir) {
+    case HB_DIRECTION_INVALID:
+    case HB_DIRECTION_LTR:
+    case HB_DIRECTION_RTL:
+    case HB_DIRECTION_TTB:
+    case HB_DIRECTION_BTT:
+      hb_buffer_set_direction(b, (hb_direction_t)dir);
+      return true;
+    default:
+      return false;
+  }
+}
+
+i32 EXPORT FKBufGetDirection(FKBuf* b) {
+  return (i32)hb_buffer_get_direction(b);
+}
+
+void EXPORT FKBufGuessSegmentProps(FKBuf* b) {
+  hb_buffer_guess_segment_properties(b);
 }
 
 

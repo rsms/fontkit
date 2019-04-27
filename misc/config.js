@@ -68,6 +68,7 @@ const argv = process.argv
 const opts = {
   debug: !argv.includes('-O'),
   help: argv.includes('-h') || argv.includes('-help'),
+  pretty: argv.includes('-pretty'),
   write_if_changed: argv.includes('-write-if-changed'),
 }
 
@@ -78,8 +79,10 @@ if (opts.help) {
 
   Configure build
   usage: %s [-O | -help]
-    -O      Enable optimizations
-    -help   Show help message and exit
+    -O                  Enable optimizations
+    -h, -help           Show help message and exit
+    -pretty             Generate pretty code i/c/w -O
+    -write-if-changed   Only write changes if things actually changed
 
     `.trim().replace(/^\s{2}/gm, ''),
     process.env['_'] || argv[1]
@@ -89,7 +92,8 @@ if (opts.help) {
 
 
 // Ninja project
-const p = project(Path.dirname(__dirname), 'build')
+const outdir = opts.debug ? 'build/debug' : 'build/release'
+const p = project(Path.dirname(__dirname), outdir)
 p.generator = p.filepath(__filename)
 
 // vars
@@ -144,6 +148,9 @@ if (opts.debug) {
     '-Os',
     '-DNDEBUG',
   )
+  if (opts.pretty) {
+    p.appendVar('wasmc_flags', '-pretty')
+  }
 }
 
 function parsefilenames(text, basedir) {

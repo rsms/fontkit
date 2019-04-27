@@ -24,6 +24,12 @@ export class FontVariations {
     }
     _free(p1)
   }
+
+  _reset() {
+    this.ptr = 0
+    this.styles = []
+    this.axes = []
+  }
 }
 
 class VarStyle {

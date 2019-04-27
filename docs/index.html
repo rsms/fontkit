@@ -98,7 +98,8 @@ function fetchbuf(url) { // :Promise<ArrayBuffer>
 //   fetchbuf(url).then(buf => define(url, [], ()=>buf))
 // }
 
-let fontfile = 'Inter-UI.var.ttf'
+let fontfile = 'Inter.var.ttf'
+// let fontfile = 'Inter-Regular.woff'
 let fontfileTitle = document.getElementById('fontfile')
 fontfileTitle.innerText = fontfile
 
@@ -121,11 +122,12 @@ varAxisTemplate.parentNode.removeChild(varAxisTemplate)
 
 
 function printInfo() {
-  console.log('font.info =>')
+  // console.log('font.info =>')
   let infoOutput = document.getElementById('output')
   infoOutput.innerText = ''
+
   for (let k in font.info) {
-    console.log(`  ${k}:`, font.info[k])
+    // console.log(`  ${k}:`, font.info[k])
     infoOutput.innerText += `${k}: ${font.info[k]}\n`
   }
 
@@ -150,15 +152,20 @@ function printInfo() {
 
 function layout(font, text) {
   let glyphs = font.layout(text, layoutConfig)
-  // console.log("font.layout =>", glyphs)
+  try {
+    // console.log("font.layout =>", glyphs)
+    // console.log("effective script: =>", glyphs.script())
+    // console.log("effective language: =>", glyphs.language())
 
-  layoutOutput.innerText = ''
-  for (let g of glyphs) {
-    layoutOutput.innerText +=
-      `#${g.id} — "${g.name}" — advance: ${g.advanceX} — kerning: ${g.kerningX}\n`
+    layoutOutput.innerText = `Script: ${glyphs.script()}\n`
+    for (let g of glyphs) {
+      layoutOutput.innerText +=
+        `#${g.id} — "${g.name}" — advance: ${g.advanceX} — kerning: ${g.kerningX}\n`
+    }
+
+  } finally {
+    glyphs.dispose()
   }
-
-  glyphs.dispose()
 }
 
 

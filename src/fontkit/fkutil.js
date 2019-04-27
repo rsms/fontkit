@@ -225,26 +225,30 @@ export function ureadI32(buf, addr) {
 // }
 
 
-// hbtag converts a <=4 character string to a hb_tag_t
+// asciiStrToU32 converts a <=4 character string to a u32.
+// For example, string -> hb_tag_t
 //
-export function hbtag(name) {
-  // matches #define HB_TAG(c1,c2,c3,c4) in hb-common.h
+export function asciiStrToU32(s) {
+  // Note: Should match #define HB_TAG(c1,c2,c3,c4) in hb-common.h
   return (
-    ((name.charCodeAt(0) >>> 0) << 24) >>> 0 | // "">>> 0" u32 please
-    ((name.charCodeAt(1) >>> 0) << 16) |
-    ((name.charCodeAt(2) >>> 0) << 8) |
-    (name.charCodeAt(3) >>> 0)
+    ((s.charCodeAt(0) >>> 0) << 24) >>> 0 | // "">>> 0" u32 please
+    ((s.charCodeAt(1) >>> 0) << 16) |
+    ((s.charCodeAt(2) >>> 0) << 8) |
+     (s.charCodeAt(3) >>> 0)
   )
 }
 
-// hbtagStr converts a hb_tag_t to a string
+export const hbtag = asciiStrToU32
+
+// u32ToAsciiStr converts a u32 to a ASCII string
+// For example, hb_tag_t -> string
 //
-export function hbtagStr(tag) {
+export function u32ToAsciiStr(u) {
   return String.fromCharCode(
-    ((tag >> 24) & 0xff),
-    ((tag >> 16) & 0xff),
-    ((tag >>  8) & 0xff),
-    ((tag >>  0) & 0xff)
+    ((u >> 24) & 0xff),
+    ((u >> 16) & 0xff),
+    ((u >>  8) & 0xff),
+    ((u >>  0) & 0xff)
   )
 }
 

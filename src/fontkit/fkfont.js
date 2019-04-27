@@ -10,20 +10,51 @@ import { Glyphs } from './fkglyphs'
 import { FontVariations } from './fkvar'
 
 
+const emptyFontInfo = Object.freeze({
+  ascender: 0,
+  capHeight: 0,
+  descender: 0,
+  faceFlags: 0,
+  faceIndex: 0,
+  familyName: "",
+  formatName: "",
+  height: 0,
+  isMonospace: false,
+  isScalable: false,
+  isSFNT: false,
+  maxAdvanceHeight: 0,
+  maxAdvanceWidth: 0,
+  numCharmaps: 0,
+  numFaces: 0,
+  numFixedSizes: 0,
+  numGlyphs: 0,
+  styleFlags: 0,
+  styleName: "",
+  underlinePosition: 0,
+  underlineThickness: 0,
+  unitsPerEm: 0,
+  vendorID: "",
+  weightClass: 0,
+  widthClass: 0,
+  xHeight: 0,
+})
+
+
 export class Font {
   constructor() {
     this.ptr = null      // pointer to FT_Face
     this.dataptr = null  // pointer to font data
-    this.info = {}
+    this.info = emptyFontInfo
     this._glyphNameCache = new Map()
     this._glyphNamePtr = 0
+    this._var = undefined
   }
 
   // load initializes the objects by parsing font data.
   // Call this on an existing/valid Font object is valid and causes the
   // underlying font object to be replaced.
   //
-  // load(buf :ArrayBuffer|byte[]) : this
+  // load(buf :ArrayBuffer|byte[]) :void
   //
   load(buf) {
     this.dispose()
@@ -38,44 +69,53 @@ export class Font {
       throw new FKError()
     }
 
-    // preload properties
-    // TODO: implement "statically" without reflection
-    const objprops = {}
+    // build info object
+    this.info = {
+      isSFNT: !!_FKFontGetIsSFNT(this.ptr),
+      isScalable: !!_FKFontGetIsScalable(this.ptr),
+      isMonospace: !!_FKFontGetIsMonospace(this.ptr),
+      weightClass: _FKFontGetWeightClass(this.ptr),
+      widthClass: _FKFontGetWidthClass(this.ptr),
+      xHeight: _FKFontGetXHeight(this.ptr),
+      capHeight: _FKFontGetCapHeight(this.ptr),
+    }
     const accessorPrefix = '_FKFontGet_'
     for (let k in asm) {
       if (k.startsWith(accessorPrefix)) {
         let name = k.substr(accessorPrefix.length).toLowerCase()
         name = name.replace(/_(.)/g, (m, a) => a.toUpperCase())
-        objprops[name] = {
-          configurable: true,
-          enumerable: true,
-          get: () => {
-            let value = asm[k](this.ptr)
-            if (k.endsWith('_name')) {
-              value = UTF8ArrayToString(HEAPU8, value)
-            }
-            Object.defineProperty(this, name, { enumerable: true, value })
-            return value
-          }
+        let value = asm[k](this.ptr)
+        if (k.endsWith('_name')) {
+          value = UTF8ArrayToString(HEAPU8, value)
         }
+        this.info[name] = value
       }
     }
-    this.info = Object.create(null, objprops)
+
+    // vendor ID (four ASCII characters)
+    let p = _FKFontGetVendorID(this.ptr)
+    this.info.vendorID = p == 0 ? "" : String.fromCharCode(
+      HEAPU8[p],
+      HEAPU8[p+1],
+      HEAPU8[p+2],
+      HEAPU8[p+3]
+    )
 
     // XXX DEBUG
     _FKFontFeatures(this.ptr)
   }
 
   dispose() {
-    // if (this.onDispose) {
-    //   for (let f of this.onDispose) {
-    //     f(this)
-    //   }
-    //   this.onDispose = null
-    // }
     if (this.ptr) {
       _FKFontFree(this.ptr)
       this.ptr = 0
+
+      // FKFontFree frees associated FKVar data
+      if (this._var) {
+        this._var._reset()
+      }
+      this._var = undefined
+
       _free(this.dataptr)
       this.dataptr = 0
     }
@@ -83,6 +123,7 @@ export class Font {
       _free(this._glyphNamePtr)
       this._glyphNamePtr = 0
     }
+    this.info = emptyFontInfo
   }
 
   toString() {
@@ -98,12 +139,11 @@ export class Font {
 
   // variations is non-null for variable fonts
   get variations() { // :FontVariations|null
-    let v = null, vptr = _FKFontGetVar(this.ptr)
-    if (vptr != 0) {
-      v = new FontVariations(vptr)
+    if (this._var === undefined) {
+      let vptr = _FKFontGetVar(this.ptr)
+      this._var = vptr != 0 ? new FontVariations(vptr) : null
     }
-    Object.defineProperty(this, 'variations', {value:v, enumerable:true})
-    return v
+    return this._var
   }
 
   glyphName(gid) {
@@ -189,13 +229,12 @@ const glyphsFreeList = []
 function allocGlyphsObj(font) {
   let g = glyphsFreeList.pop()
   if (g) {
-    _FKBufReset(g.ptr)
     g.font = font
   } else {
     g = new Glyphs(font)
     g.dispose = () => {
-      g.font = null
       if (g.ptr) {
+        g._reset()
         glyphsFreeList.push(g)
       }
     }
