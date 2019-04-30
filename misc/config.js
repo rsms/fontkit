@@ -130,8 +130,6 @@ p.cflag(
   '-s', 'ALLOW_MEMORY_GROWTH=1',
   '-s', 'DISABLE_EXCEPTION_CATCHING=1',
   '-s', 'ERROR_ON_UNDEFINED_SYMBOLS=1',
-  '-s', 'NO_EXIT_RUNTIME=1',
-  '-s', 'NO_FILESYSTEM=1',
   '-s', 'BINARYEN_TRAP_MODE="clamp"',
 )
 
